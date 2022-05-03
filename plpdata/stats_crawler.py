@@ -3,8 +3,9 @@ import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
 from loguru import logger
+import json
 
-def get_season(play_time) -> str:
+def get_season(play_time: datetime) -> str:
     current_year = play_time.year
 
     if play_time > datetime(current_year, 10, 1):
@@ -14,7 +15,7 @@ def get_season(play_time) -> str:
     return season
 
 
-def get_game_info(game_id) -> dict:
+def get_game_info(game_id: int) -> dict:
     """
     game_type, game_number, location, home, away, 
     """
@@ -53,21 +54,14 @@ def get_game_info(game_id) -> dict:
 def headers() -> dict:
     return {
         "accept": "application/json, text/javascript, */*; q=0.01",
-        "accept-encoding": "gzip, deflate, br",
+        "accept-encoding": "gzip, deflate",
         "accept-language": "zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7,zh-CN;q=0.6",
-        "cookie": "PHPSESSID=6qbctjqkjpcq6akosbsnosc7f9; _ga=GA1.1.2039077758.1649901582; _ga_E4T1HDWQ3D=GS1.1.1650807763.5.1.1650808386.58",
-        # "referer": "https://pleagueofficial.com/game/151",
-        "sec-ch-ua": '''" Not A;Brand";v="99", "Chromium";v="100", "Google Chrome";v="100"''',
-        "sec-ch-ua-mobile": "?1",
-        "sec-ch-ua-platform": "'Android'",
-        "sec-fetch-dest": "empty",
-        "sec-fetch-mode": "cors",
-        "sec-fetch-site": "same-origin",
-        "user-agent": "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.88 Mobile Safari/537.36",
-        "x-requested-with": "XMLHttpRequest",    
+        # "referer": 'https://pleagueofficial.com/game/73',
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36",
+        "x-requested-with": "XMLHttpRequest",
     }
 
-def get_game_stats(game_id, game_info) -> pd.DataFrame:
+def get_game_stats(game_id: int, game_info: dict) -> pd.DataFrame:
     url = f"https://pleagueofficial.com/api/boxscore.php?id={game_id}&away_tab=total&home_tab=total"
 
     res = requests.get(
@@ -75,41 +69,59 @@ def get_game_stats(game_id, game_info) -> pd.DataFrame:
     )
     logger.info(f"Extract game stats from '{url}'")
 
-    # print(res.json()['data'])
-
-    df_home = pd.DataFrame(res.json()['data']['home'])
-    df_away = pd.DataFrame(res.json()['data']['away'])
-    df_home['team_name'] = game_info['home']
-    df_home['is_home'] = True
-    df_away['team_name'] = game_info['away']
-    df_away['is_home'] = False
-    
-    df = pd.concat([df_home, df_away])
-    df['game_id'] = game_id
-    df['season'] = game_info['season']
-    df['game_type'] = game_info['game_type']
-    df['game_number'] = game_info['game_number'] 
-    df['location'] = game_info['location']
-    df['play_time'] = game_info['play_time']
+    if res.json()['data']['home']: 
+        df_home = pd.DataFrame(res.json()['data']['home'])
+        df_away = pd.DataFrame(res.json()['data']['away'])
+        df_home['team_name'] = game_info['home']
+        df_home['is_home'] = True
+        df_away['team_name'] = game_info['away']
+        df_away['is_home'] = False
+        
+        df = pd.concat([df_home, df_away])
+        df['game_id'] = game_id
+        df['season'] = game_info['season']
+        df['game_type'] = game_info['game_type']
+        df['game_number'] = game_info['game_number'] 
+        df['location'] = game_info['location']
+        df['play_time'] = game_info['play_time']
+        df['starter'] = df['starter'] == '〇'
+    else: 
+        logger.warning('This game has not happened yet!')
+        df = pd.DataFrame()
 
     return df 
 
 def main():
-    logger.info("Crawler first 10 game info")
+    logger.info("Crawling game info")
 
     games = []
-    for i in range(110, 111):
-        # games.append(get_game_info(i))
-        game_info = get_game_info(i)
-        df = get_game_stats(i, game_info)
+    # for i in range(110, 111):
+    i = 65
+    game_info = get_game_info(i)
+    df = get_game_stats(i, game_info)
 
         # print(game_info)
 
-    # print(df)
-    df.to_csv('game_stats.csv', index=False, encoding="utf_8_sig")
+    print(pd.DataFrame([game_info]))
+    print(df.head())
+    # df.to_csv('game_stats.csv', index=False, encoding="utf_8_sig")
+    # logger.info(f"Saved as 'game_stats.csv' ")
     # df = pd.DataFrame(games).sort_values('play_time')
     
 
 
 if __name__ == '__main__':
     main()
+
+
+
+
+
+teams = {
+    "福爾摩沙台新夢想家": "Formosa Taishin Dreamers",
+    "臺北富邦勇士": "Taipei Fubon Braves",
+    "高雄鋼鐵人": "Kaohsiung Steelers",
+    "桃園領航猿": "Taoyuan Pilots",
+    "新北國王": "New Taipei Kings",
+    "新竹街口攻城獅": "Hsinchu Jko Lioneers"
+}

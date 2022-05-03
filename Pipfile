@@ -8,8 +8,11 @@ requests = "*"
 beautifulsoup4 = "*"
 loguru = "*"
 pandas = "*"
+psycopg2-binary = "*"
+psycopg = {extras = ["binary"], version = "*"}
+sqlalchemy = "*"
 
 [dev-packages]
 
 [requires]
-python_version = "3.6"
+python_version = "3.8.2"
